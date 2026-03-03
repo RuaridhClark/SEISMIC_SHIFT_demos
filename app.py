@@ -318,7 +318,7 @@ class HealthcareDES:
 # Run Simulation
 # =========================================================
 
-def run_sim(model, sim_time, Start_rate, staff_rates_per_min):
+def run_sim(model, num_patients, staff_rates_per_min):
     edges = model["edges"]
     durations = model["durations"]
     staff_roles = model["staff_roles"]
@@ -330,15 +330,15 @@ def run_sim(model, sim_time, Start_rate, staff_rates_per_min):
     system = HealthcareDES(env, edges, durations, staff_roles, staff_rates_per_min, counters)
 
     def Starts():
-        i = 0
-        while env.now < sim_time:
-            i += 1
+        for i in range(1, num_patients + 1):
             env.process(system.patient(f"P{i}"))
-            # Inter-Start time ~ Exponential with rate (patients per minute)
-            yield env.timeout(random.expovariate(Start_rate))
+            # Optional: small fixed inter-arrival time to avoid simultaneous starts
+            yield env.timeout(1)  # 1 minute between patients (adjust if needed)
 
     env.process(Starts())
-    env.run(until=sim_time)
+    
+    # Run until all patients have finished
+    env.run()
 
     # Return counters, time, and costs
     results = {
@@ -369,8 +369,8 @@ elif model_name == "Test of change":
 elif model_name == "Potential pathway":
     st.image(image_location + "\\Proposed_pathway_model.png", caption="Potential Pathway Diagram")
 
-sim_time = st.slider("Simulation Duration (minutes)", 500, 5000, 2000, step=100)
-Start_rate = st.slider("Start Rate (patients per minute)", 0.01, 0.30, 0.08, step=0.01)
+# Allow user to select exactly how many patients enter
+num_patients = st.slider("Number of Patients", 1, 500, 100, step=1)
 
 # --- Helper: extract unique roles from staff_roles (string or dict) ---
 def extract_roles_from_staff_map(staff_map):
@@ -438,7 +438,7 @@ def infer_default_band(role_name: str) -> str:
     # 4) Final fallback
     return "Band 6"
 
-st.subheader("💷 Staff Cost per Minute (by role)")
+st.subheader("💷 Staff Cost by role")
 roles = extract_roles_from_staff_map(model["staff_roles"])
 
 # Let user pick Band per role, compute rate from band_rates
@@ -462,8 +462,6 @@ for idx, role in enumerate(roles):
 # st.caption("Rates are derived from selected Band: " + ", ".join(
 #     [f"{r}: £{staff_rates_per_min[r]:.2f}/min" for r in roles[:5]]
 # ) + (" …" if len(roles) > 5 else ""))
-
-
 
 def format_role_mix(val):
     if isinstance(val, str):
@@ -518,8 +516,80 @@ def staff_role_costs(df, staff_roles):
 
     return role_summary
 
+def image_overlay_results(df,image_location, model_name):
+    import streamlit as st
+    import matplotlib.pyplot as plt
+    import matplotlib.image as mpimg
+    import pandas as pd
+
+    image_path = image_location + "\\Current_pathway_model.png"
+    img = mpimg.imread(image_path)
+
+    # Fixed x, y positions for each node (dummy example, in pixels)
+    positions = {
+        "Start": (120, 250),
+        "GP appointment": (700, 450),
+        "Respiratory referral admin": (1350, 550),
+        "Cardiology referral admin": (1350, 600),
+        "Respiratory Referral vetting": (1450, 550),
+        "Cardiology Referral vetting": (1450, 600),
+        "Respiratory clinic": (1850, 225),
+        "Cardiology clinic": (1850, 925),
+        "Respiratory test admin": (2600, 225),
+        "Cardiology test admin": (2600, 925),
+        "Respiratory tests": (2700, 225),
+        "Cardiology tests": (2700, 925),
+        "Respiratory Review": (3385, 225),
+        "Cardiology Review": (3385, 925),
+        "Respiratory review admin": (3485, 225),
+        "Cardiology review admin": (3485, 925),
+        "End": (3700, 250),
+    }
+
+    # Add x and y columns based on positions dictionary
+    df['x'] = [positions[node][0] for node in df.index]
+    df['y'] = [positions[node][1] for node in df.index]
+
+    # # Reset index to have a column for node names
+    # df = df.reset_index().rename(columns={"index": "Node"})
+    df = df.reset_index()
+
+    # Plotting
+    fig, ax = plt.subplots(figsize=(30, 18))
+
+    # Show the image
+    ax.imshow(img)
+
+    # Remove axes if desired
+    ax.axis('off')
+
+    bar_width = 75  # width of each bar in pixels
+
+    for _, row in df.iterrows():
+        height = row['Total Cost (£)']
+    
+        # Flip sign for specific nodes
+        if row['Node'] in ["GP appointment","Respiratory referral admin","Respiratory Referral vetting","Respiratory review admin","Respiratory Review","Respiratory clinic","Respiratory test admin","Respiratory tests"]:
+            height = -height  # will extend downwards
+
+        ax.bar(
+            x=row['x'], 
+            height=height*0.035,  # scale cost to pixels
+            width=bar_width, 
+            bottom=row['y'],  # start from y coordinate
+            color='red', 
+            alpha=0.7
+        )
+        # # optional: label each node
+        # ax.text(row['x'], row['y'] + row['Total Cost (£)'] + 5, row['Node'],
+        #         ha='center', va='bottom', fontsize=10, color='black')
+
+    st.pyplot(fig)
+
+    return
+
 if st.button("Run Simulation"):
-    sim_results = run_sim(model, sim_time, Start_rate, staff_rates_per_min)
+    sim_results = run_sim(model, num_patients, staff_rates_per_min)
 
     counts = sim_results["counts"]
     time_per_node = sim_results["time_per_node"]
@@ -546,10 +616,12 @@ if st.button("Run Simulation"):
     Endd = counts.get("End", 0)
     avg_cost_per_patient = (total_cost / Endd) if Endd > 0 else 0.0
 
-    c1, c2, c3 = st.columns(3)
+    c1, c2 = st.columns(2)
     c1.metric("Total Cost (£)", f"{total_cost:,.2f}")
-    c2.metric("Patients", f"{Endd}")
-    c3.metric("Avg Cost per Patient (£)", f"{avg_cost_per_patient:,.2f}")
+    c2.metric("Avg Cost per Patient (£)", f"{avg_cost_per_patient:,.2f}")
+
+    ### Overlay results on pathway image
+    image_overlay_results(df, image_location, model_name)
 
     df_sorted = df.sort_values(by="Total Cost (£)", ascending=False)
     st.subheader("📊 Activity-Level Results")
@@ -564,7 +636,6 @@ if st.button("Run Simulation"):
     st.bar_chart(
         role_summary.set_index("Staff Role")["Total Cost (£)"]
     )
-
 
     # =========================================================
     # Pathway Visualization
