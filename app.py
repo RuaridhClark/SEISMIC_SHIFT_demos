@@ -9,13 +9,21 @@ import networkx as nx
 import copy
 import matplotlib.pyplot as plt
 from collections import defaultdict
+from pathlib import Path
+from PIL import Image
 
 st.set_page_config(layout="wide")
 
 # Add image right aligned in the header (optional)
 col1, col2 = st.columns([3, 1])
 with col2:
-    st.image("assets\\Logo.png", width=500)
+    # Get the path relative to app.py
+    base_dir = Path(__file__).parent
+    img_path = base_dir / "assets" / "Logo.png"
+
+    # Load and display
+    img = Image.open(img_path)
+    st.image(img, width=500)
 
 st.title("NHSL Breathlessness Pathway Models")
 
@@ -653,9 +661,11 @@ def staff_role_costs(df, staff_roles, staff_rates_per_min):
 
 def graphic_overlay(df, df_roles, img, positions, img_hold, role_colour_map):
     from matplotlib.patches import Patch
+    import numpy as np
 
     fig, ax = plt.subplots(figsize=(50, 25))
-    ax.imshow(img)
+    img_array = np.array(img)
+    ax.imshow(img_array)
     ax.axis('off')
 
     bar_width = 75  # width in pixels
@@ -703,15 +713,31 @@ def graphic_overlay(df, df_roles, img, positions, img_hold, role_colour_map):
             )
             bottom_y += height
 
-    # Combine all role-level data
-    all_roles_df = []
+    # # Combine all role-level data
+    # all_roles_df = []
+
+    # for node, node_df in df_roles.items():
+    #     node_df = node_df.copy()
+    #     node_df['Node'] = node
+    #     all_roles_df.append(node_df)
+
+    # all_roles_df = pd.concat(all_roles_df, ignore_index=True)
+
+    # Combine all role-level data safely
+    all_roles_df_list = []
 
     for node, node_df in df_roles.items():
         node_df = node_df.copy()
         node_df['Node'] = node
-        all_roles_df.append(node_df)
+        # Only append non-empty DataFrames with at least one non-NA column
+        if not node_df.empty and node_df.dropna(how="all", axis=1).shape[1] > 0:
+            all_roles_df_list.append(node_df)
 
-    all_roles_df = pd.concat(all_roles_df, ignore_index=True)
+    # Concatenate, or create an empty fallback DataFrame
+    if all_roles_df_list:
+        all_roles_df = pd.concat(all_roles_df_list, ignore_index=True)
+    else:
+        all_roles_df = pd.DataFrame(columns=["Node", "Staff Role", "Total Cost (£)", "Total Minutes"])
 
     # Merge consultant types
     all_roles_df['Staff Role'] = all_roles_df['Staff Role'].replace({
@@ -831,14 +857,18 @@ def image_overlay_results(df, df_roles, model_name, img_hold, img_hold2, role_co
     import pandas as pd
 
     # Path to the pathway image
-    if model_name == "Current pathway":
-        image_path = "assets\\Current_pathway_model.png"
-    elif model_name == "Test of change":
-        image_path = "assets\\ToC_pathway_model.png"
-    elif model_name == "Potential pathway":
-        image_path = "assets\\Proposed_pathway_model.png"
+    # Get the path relative to app.py
+    base_dir = Path(__file__).parent
+    img_path = base_dir / "assets" / "Logo.png"
 
-    img = mpimg.imread(image_path)
+    if model_name == "Current pathway":
+        image_path = base_dir / "assets" / "Current_pathway_model.png"
+    elif model_name == "Test of change":
+        image_path = base_dir / "assets" / "ToC_pathway_model.png"
+    elif model_name == "Potential pathway":
+        image_path = base_dir / "assets" / "Proposed_pathway_model.png"
+
+    pathway_img = Image.open(image_path)
 
     # Fixed x, y positions for each node (in pixels)
     positions = build_positions(model_name)
@@ -1030,12 +1060,25 @@ with col_main:
     img_hold2 = st.empty()
 
 # include image based on model selection (optional)
+# Base folder relative to this script
+base_dir = Path(__file__).parent
+
+# Select image based on model_name
 if model_name == "Current pathway":
-    img_hold.image("assets\\Current_pathway_model.png", caption="Current Pathway Diagram")
+    image_path = base_dir / "assets" / "Current_pathway_model.png"
+    caption = "Current Pathway Diagram"
 elif model_name == "Test of change":
-    img_hold.image("assets\\ToC_pathway_model.png", caption="Test of Change Pathway Diagram")
+    image_path = base_dir / "assets" / "ToC_pathway_model.png"
+    caption = "Test of Change Pathway Diagram"
 elif model_name == "Potential pathway":
-    img_hold.image("assets\\Proposed_pathway_model.png", caption="Potential Pathway Diagram")
+    image_path = base_dir / "assets" / "Proposed_pathway_model.png"
+    caption = "Potential Pathway Diagram"
+
+# Load with PIL for reliability
+img = Image.open(image_path)
+
+# Display in Streamlit
+img_hold.image(img, caption=caption, width='content')
 
 if run_sim_clicked:
     if "simulation_plots" not in st.session_state:
@@ -1195,4 +1238,10 @@ if run_sim_clicked:
             
         st.pyplot(plt, width="content")
 
-st.image("assets\\Funders.png", width=400)
+# Get the path relative to app.py
+base_dir = Path(__file__).parent
+img_path = base_dir / "assets" / "Funders.png"
+
+# Load and display
+img = Image.open(img_path)
+st.image(img, width=400)
