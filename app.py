@@ -1,4 +1,5 @@
-# Run with streamlit run "C:\Users\pxb08145\OneDrive - University of Strathclyde\Documents\GitHub\SEISMIC_SHIFT_demos\SEISMIC_SHIFT_demos\app.py"
+# Run with Streamlit using the following command:
+# streamlit run "C:\Users\pxb08145\OneDrive - University of Strathclyde\Documents\GitHub\SEISMIC_SHIFT_demos\SEISMIC_SHIFT_demos\app.py"
 
 import streamlit as st
 import simpy
@@ -353,7 +354,7 @@ def build_positions(pathway_name):
     if pathway_name == "Current pathway":
         return {
             "Start": (120, 250),
-            "GP appointment": (700, 450),
+            "GP appointment": (725, 450),
             "Respiratory referral admin": (1350, 550),
             "Cardiology referral admin": (1350, 600),
             "Respiratory Referral vetting": (1450, 550),
@@ -651,27 +652,9 @@ def staff_role_costs(df, staff_roles, staff_rates_per_min):
 
     return role_summary
 
-def image_overlay_results(df, df_roles, image_location, model_name, img_hold, img_hold2, role_colour_map):
-    import streamlit as st
-    import matplotlib.pyplot as plt
-    import matplotlib.image as mpimg
-    import pandas as pd
+def graphic_overlay(df, df_roles, img, positions, img_hold, role_colour_map):
     from matplotlib.patches import Patch
 
-    # Path to the pathway image
-    if model_name == "Current pathway":
-        image_path = image_location + "\\Current_pathway_model.png"
-    elif model_name == "Test of change":
-        image_path = image_location + "\\ToC_pathway_model.png"
-    elif model_name == "Potential pathway":
-        image_path = image_location + "\\Proposed_pathway_model.png"
-
-    img = mpimg.imread(image_path)
-
-    # Fixed x, y positions for each node (in pixels)
-    positions = build_positions(model_name)
-
-    ############ Graphic plot ############
     fig, ax = plt.subplots(figsize=(50, 25))
     ax.imshow(img)
     ax.axis('off')
@@ -766,8 +749,9 @@ def image_overlay_results(df, df_roles, image_location, model_name, img_hold, im
     # Show the figure in Streamlit
     img_hold.pyplot(fig,width="content")
 
-    ############### Stacked horizontal bar plot ###############
+    return all_roles_df
 
+def horz_bar_plot(all_roles_df, df, df_roles, positions, img_hold2, role_colour_map):
     # Aggregate total cost by Staff Role
     total_role_costs = (
         all_roles_df
@@ -830,7 +814,41 @@ def image_overlay_results(df, df_roles, image_location, model_name, img_hold, im
     # hide axes
     ax.axis('off')
 
-    img_hold2.pyplot(fig, use_container_width=True)
+    img_hold2.pyplot(fig, width='stretch')
+
+    st.session_state.simulation_plots.append({
+        "fig": copy.deepcopy(fig),
+        "model_name": model_name,
+        "max_x": left_position
+    })
+    st.session_state.simulation_plots = st.session_state.simulation_plots[-5:] # keep only last 5 plots
+
+    return
+
+def image_overlay_results(df, df_roles, image_location, model_name, img_hold, img_hold2, role_colour_map):
+    import streamlit as st
+    import matplotlib.pyplot as plt
+    import matplotlib.image as mpimg
+    import pandas as pd
+
+    # Path to the pathway image
+    if model_name == "Current pathway":
+        image_path = image_location + "\\Current_pathway_model.png"
+    elif model_name == "Test of change":
+        image_path = image_location + "\\ToC_pathway_model.png"
+    elif model_name == "Potential pathway":
+        image_path = image_location + "\\Proposed_pathway_model.png"
+
+    img = mpimg.imread(image_path)
+
+    # Fixed x, y positions for each node (in pixels)
+    positions = build_positions(model_name)
+
+    ############ Graphic plot ############
+    all_roles_df = graphic_overlay(df, df_roles, img, positions, img_hold, role_colour_map)
+
+    ############### Stacked horizontal bar plot ###############
+    horz_bar_plot(all_roles_df, df, df_roles, positions, img_hold2, role_colour_map)
 
     return
 
@@ -875,10 +893,6 @@ def role_cost_barchart(df, model_staff_roles, role_colour_map, staff_rates_per_m
     # axis box off
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-
-    # # Create legend
-    # legend_handles = [Patch(color=color, label=role) for role, color in role_colour_map.items() if role in role_summary["Staff Role"].values]
-    # ax.legend(handles=legend_handles, loc='upper right', fontsize=12)
 
     # Show in Streamlit
     st.pyplot(fig, width="content")
@@ -931,6 +945,26 @@ band_token_to_full = {
 }
 
 band_options = list(band_rates.keys())  # for dropdowns, keeps order as defined above
+
+# =========================================================
+# Model Explanation
+# =========================================================
+
+with st.expander("How This Simulation Works"):
+    st.markdown("""
+    This app uses **discrete-event simulation (DES)** to model resources in a patient pathway.
+
+    - Each patient is **simulated individually**, moving through the pathway according to defined transitions and durations.
+    - Transitions follow **probabilities** that a given patient will move from one activity to another. These probabilities are based on findings from a test of change run in NHS Lanarkshire (2024).
+    - Each activity takes a **variable amount of time** within bounds set as a defined minimum and maximum duration.
+    - Each activity is linked to a **staff role** with their associated **cost per minute**.
+    - We run ten simulations before reporting on simulated **patient journeys, time at each activity, and cost**.
+
+    """)
+
+# =========================================================
+# User defined parameters: staff bands and activity durations
+# =========================================================
 
 with st.expander("Edit staff bands"):
     st.subheader("Staff Cost by role")
@@ -1007,6 +1041,9 @@ elif model_name == "Potential pathway":
     img_hold.image(image_location + "\\Proposed_pathway_model.png", caption="Potential Pathway Diagram")
 
 if run_sim_clicked:
+    if "simulation_plots" not in st.session_state:
+        st.session_state.simulation_plots = []
+
     # sim_results = run_sim(model, num_patients, staff_rates_per_min)
     sim_results = run_multiple_sims(model, num_patients, staff_rates_per_min, n_sims=10)
 
@@ -1071,7 +1108,21 @@ if run_sim_clicked:
 
     with st.expander("Activity-Level Breakdown"):
         df_sorted = df.sort_values(by="Total Cost (£)", ascending=False)
-        st.dataframe(df_sorted, use_container_width=True)
+        st.dataframe(df_sorted, width='stretch')
+
+    with st.expander("Previous Simulations Comparison"):
+        global_max_x = max(p["max_x"] for p in st.session_state.simulation_plots)
+
+        for sim in st.session_state.simulation_plots:
+
+            fig = sim["fig"]
+            ax = fig.axes[0]
+
+            # enforce consistent scaling
+            ax.set_xlim(-1, (global_max_x) + 10)
+
+            st.markdown(f"### {sim['model_name']}")
+            st.pyplot(fig)
 
     # =========================================================
     # Pathway Visualization
@@ -1146,21 +1197,5 @@ if run_sim_clicked:
         #     ax.text(x, y, node, ha="center", va="center", fontsize=12, color="white")
             
         st.pyplot(plt, width="content")
-
-# =========================================================
-# Model Explanation
-# =========================================================
-
-with st.expander("How This Simulation Works"):
-    st.markdown("""
-    This app uses **discrete-event simulation (DES)** to model resources in a patient pathway.
-
-    - Each patient is **simulated individually**, moving through the pathway according to defined transitions and durations.
-    - Transitions follow **probabilities** that a given patient will move from one activity to another. These probabilities are based on findings from a test of change run in NHS Lanarkshire (2024).
-    - Each activity takes a **variable amount of time** within bounds set as a defined minimum and maximum duration.
-    - Each activity is linked to a **staff role** with their associated **cost per minute**.
-    - We run ten simulations before reporting on simulated **patient journeys, time at each activity, and cost**.
-
-    """)
 
 st.image(img_location + "\\Funders2.png", width=400)

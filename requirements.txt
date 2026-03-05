@@ -1,0 +1,5 @@
+streamlit
+simpy
+networkx
+copy
+matplotlib.pyplot
