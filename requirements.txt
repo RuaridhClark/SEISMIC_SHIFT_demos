@@ -1,4 +1,4 @@
 streamlit
 simpy
 networkx
-matplotlib.pyplot
+matplotlib
