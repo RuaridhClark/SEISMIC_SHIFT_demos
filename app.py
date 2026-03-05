@@ -14,9 +14,8 @@ st.set_page_config(layout="wide")
 
 # Add image right aligned in the header (optional)
 col1, col2 = st.columns([3, 1])
-img_location = r"C:\Users\pxb08145\OneDrive - University of Strathclyde\Documents\Research\SEISMIC\Development Phase\Communication\Logo"
 with col2:
-    st.image(img_location + "\\Logo_concepts_update2.png", width=500)
+    st.image("assets\\Logo.png", width=500)
 
 st.title("NHSL Breathlessness Pathway Models")
 
@@ -825,7 +824,7 @@ def horz_bar_plot(all_roles_df, df, df_roles, positions, img_hold2, role_colour_
 
     return
 
-def image_overlay_results(df, df_roles, image_location, model_name, img_hold, img_hold2, role_colour_map):
+def image_overlay_results(df, df_roles, model_name, img_hold, img_hold2, role_colour_map):
     import streamlit as st
     import matplotlib.pyplot as plt
     import matplotlib.image as mpimg
@@ -833,11 +832,11 @@ def image_overlay_results(df, df_roles, image_location, model_name, img_hold, im
 
     # Path to the pathway image
     if model_name == "Current pathway":
-        image_path = image_location + "\\Current_pathway_model.png"
+        image_path = "assets\\Current_pathway_model.png"
     elif model_name == "Test of change":
-        image_path = image_location + "\\ToC_pathway_model.png"
+        image_path = "assets\\ToC_pathway_model.png"
     elif model_name == "Potential pathway":
-        image_path = image_location + "\\Proposed_pathway_model.png"
+        image_path = "assets\\Proposed_pathway_model.png"
 
     img = mpimg.imread(image_path)
 
@@ -1031,14 +1030,12 @@ with col_main:
     img_hold2 = st.empty()
 
 # include image based on model selection (optional)
-image_location = "C:\\Users\\pxb08145\\OneDrive - University of Strathclyde\\Documents\\Research\\SEISMIC\\Innovation Partnership\\WS1\\Breathlessness Pathway Modelling\\Models"
 if model_name == "Current pathway":
-    # add image from image_location
-    img_hold.image(image_location + "\\Current_pathway_model.png", caption="Current Pathway Diagram")
+    img_hold.image("assets\\Current_pathway_model.png", caption="Current Pathway Diagram")
 elif model_name == "Test of change":
-    img_hold.image(image_location + "\\ToC_pathway_model.png", caption="Test of Change Pathway Diagram")
+    img_hold.image("assets\\ToC_pathway_model.png", caption="Test of Change Pathway Diagram")
 elif model_name == "Potential pathway":
-    img_hold.image(image_location + "\\Proposed_pathway_model.png", caption="Potential Pathway Diagram")
+    img_hold.image("assets\\Proposed_pathway_model.png", caption="Potential Pathway Diagram")
 
 if run_sim_clicked:
     if "simulation_plots" not in st.session_state:
@@ -1101,7 +1098,7 @@ if run_sim_clicked:
         }
 
     ### Overlay results on pathway image
-    image_overlay_results(df, df_roles, image_location, model_name, img_hold, img_hold2, role_colour_map)
+    image_overlay_results(df, df_roles, model_name, img_hold, img_hold2, role_colour_map)
 
     with st.expander("Staff Role Cost Breakdown"):
         role_cost_barchart(df, model["staff_roles"], role_colour_map, staff_rates_per_min)
@@ -1198,4 +1195,4 @@ if run_sim_clicked:
             
         st.pyplot(plt, width="content")
 
-st.image(img_location + "\\Funders2.png", width=400)
+st.image("assets\\Funders.png", width=400)
