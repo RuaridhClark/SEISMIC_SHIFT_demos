@@ -1028,18 +1028,20 @@ with st.expander("Edit activity durations"):
         with col1:
             st.markdown(f"**{activity}**")
             new_min = st.number_input(
-                f"Min",
+                "Min",
                 value=float(min_dur),
                 min_value=0.0,
                 key=f"min_{activity}"
             )
 
+        # Ensure max is always >= min
+        safe_max = max(max_dur, new_min)
+
         with col2:
-            # add more vertical whitespace to align max input with min input
-            st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)          
+            st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
             new_max = st.number_input(
-                f"Max",
-                value=float(max_dur),
+                "Max",
+                value=float(safe_max),
                 min_value=new_min,
                 key=f"max_{activity}"
             )
