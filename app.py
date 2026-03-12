@@ -1031,6 +1031,7 @@ with st.expander("Edit activity durations"):
                 "Min",
                 value=float(min_dur),
                 min_value=0.0,
+                step=1.0,
                 key=f"min_{activity}"
             )
 
@@ -1043,6 +1044,7 @@ with st.expander("Edit activity durations"):
                 "Max",
                 value=float(safe_max),
                 min_value=new_min,
+                step=1.0,
                 key=f"max_{activity}"
             )
 
@@ -1087,7 +1089,8 @@ if run_sim_clicked:
         st.session_state.simulation_plots = []
 
     # sim_results = run_sim(model, num_patients, staff_rates_per_min)
-    sim_results = run_multiple_sims(model, num_patients, staff_rates_per_min, n_sims=10)
+    model_copy = copy.deepcopy(model)
+    sim_results = run_multiple_sims(model_copy, num_patients, staff_rates_per_min, n_sims=10)
 
     counts = sim_results["counts"]
     time_per_node = sim_results["time_per_node"]
