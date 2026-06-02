@@ -14,6 +14,9 @@ from PIL import Image
 
 st.set_page_config(layout="wide")
 
+if "reset_version" not in st.session_state:
+    st.session_state.reset_version = 0
+
 # ---------- HEADER ----------
 col1, col2 = st.columns([4, 2])
 
@@ -532,6 +535,63 @@ def run_sim(model, num_patients, staff_rates_per_min):
     }
     return results
 
+def summarise_changes(
+    default_model,
+    selected_band_for_role,
+    current_durations
+):
+    changes = []
+
+    # ----- Staff bands -----
+
+    roles = extract_roles_from_staff_map(
+        default_model["staff_roles"]
+    )
+
+    for role in roles:
+
+        default_band = infer_default_band(role)
+        current_band = selected_band_for_role.get(role, default_band)
+
+        if default_band != current_band:
+            changes.append(
+                f"{role}: {default_band} → {current_band}"
+            )
+
+    # ----- Activity durations -----
+
+    default_durations = default_model["durations"]
+
+    for activity, (default_min, default_max) in default_durations.items():
+
+        if activity not in current_durations:
+            continue
+        current_min, current_max = current_durations[activity]
+
+        if (
+            default_min != current_min
+            or default_max != current_max
+        ):
+
+            duration_changes = []
+
+            if default_min != current_min:
+                duration_changes.append(
+                    f"min {default_min:g}→{current_min:g}"
+                )
+
+            if default_max != current_max:
+                duration_changes.append(
+                    f"max {default_max:g}→{current_max:g}"
+                )
+
+            changes.append(
+                f"{activity}: "
+                + ", ".join(duration_changes)
+            )
+
+    return changes
+
 
 import pandas as pd
 
@@ -580,10 +640,31 @@ def run_multiple_sims(model, num_patients, staff_rates_per_min, n_sims=10):
 # Base folder relative to this script
 base_dir = Path(__file__).parent
 
-# Select image based on model_name (you must define model_name first OR set default)
+# # Select image based on model_name (you must define model_name first OR set default)
+# models = get_models()
+# model_name = st.selectbox("Select Pathway Model", list(models.keys()))
+# model = copy.deepcopy(models[model_name])
+
+# default_model = copy.deepcopy(models[model_name])
+
 models = get_models()
-model_name = st.selectbox("Select NHSL Breathlessness Pathway Model", list(models.keys()))
-model = models[model_name]
+
+# Permanent untouched defaults
+DEFAULT_MODELS = copy.deepcopy(models)
+
+model_name = st.selectbox("Select Pathway Model", list(models.keys()))
+
+# Working copy
+model = copy.deepcopy(DEFAULT_MODELS[model_name])
+
+# Baseline for comparisons
+default_model = DEFAULT_MODELS[model_name]
+
+if "band_selection" not in st.session_state:
+    st.session_state.band_selection = {}
+
+if "durations" not in st.session_state:
+    st.session_state.durations = {}
 
 if model_name == "Current pathway":
     image_path = base_dir / "assets" / "Current_pathway_model.png"
@@ -815,7 +896,7 @@ def graphic_overlay(df, df_roles, img, positions, img_hold, role_colour_map):
 
     return all_roles_df
 
-def horz_bar_plot(all_roles_df, df, df_roles, positions, img_hold2, role_colour_map):
+def horz_bar_plot(all_roles_df, df, df_roles, positions, img_hold2, role_colour_map, current_config=None, default_model=None):
     # Aggregate total cost by Staff Role
     total_role_costs = (
         all_roles_df
@@ -880,16 +961,42 @@ def horz_bar_plot(all_roles_df, df, df_roles, positions, img_hold2, role_colour_
 
     img_hold2.pyplot(fig, width='stretch')
 
+    # change_summary = summarise_changes(
+    #     previous_config,
+    #     current_config
+    # )
+    change_summary = summarise_changes(
+        default_model,
+        selected_band_for_role,
+        model["durations"]
+    )
+
+    # st.session_state.simulation_plots.append({
+    #     "fig": copy.deepcopy(fig),
+    #     "model_name": model_name,
+    #     "max_x": left_position,
+    #     "config": current_config,
+    #     "changes": change_summary,
+    #     "total_cost": total_cost,
+    #     "avg_cost_per_patient": avg_cost_per_patient
+    # })
     st.session_state.simulation_plots.append({
         "fig": copy.deepcopy(fig),
         "model_name": model_name,
-        "max_x": left_position
+        "max_x": left_position,
+        "changes": change_summary
     })
-    st.session_state.simulation_plots = st.session_state.simulation_plots[-5:] # keep only last 5 plots
+
+    # st.session_state.simulation_plots.append({
+    #     "fig": copy.deepcopy(fig),
+    #     "model_name": model_name,
+    #     "max_x": left_position
+    # })
+    # st.session_state.simulation_plots = st.session_state.simulation_plots[-5:] # keep only last 5 plots
 
     return
 
-def image_overlay_results(df, df_roles, model_name, img_hold, img_hold2, role_colour_map):
+def image_overlay_results(df, df_roles, model_name, img_hold, img_hold2, role_colour_map, current_config=None):
     import streamlit as st
     import matplotlib.pyplot as plt
     import matplotlib.image as mpimg
@@ -916,8 +1023,16 @@ def image_overlay_results(df, df_roles, model_name, img_hold, img_hold2, role_co
     all_roles_df = graphic_overlay(df, df_roles, img, positions, img_hold, role_colour_map)
 
     ############### Stacked horizontal bar plot ###############
-    horz_bar_plot(all_roles_df, df, df_roles, positions, img_hold2, role_colour_map)
-
+    horz_bar_plot(
+        all_roles_df,
+        df,
+        df_roles,
+        positions,
+        img_hold2,
+        role_colour_map,
+        current_config,
+        default_model
+    )
     return
 
 def role_cost_barchart(df, model_staff_roles, role_colour_map, staff_rates_per_min):
@@ -1035,7 +1150,7 @@ with st.expander("Edit staff bands"):
     roles = extract_roles_from_staff_map(model["staff_roles"])
 
     # Let user pick Band per role, compute rate from band_rates
-    selected_band_for_role = {}
+    selected_band_for_role = st.session_state.band_selection
     staff_rates_per_min = {}
 
     cols = st.columns(5)
@@ -1046,7 +1161,7 @@ with st.expander("Edit staff bands"):
                 f"{role}",
                 options=band_options,
                 index=band_options.index(default_band) if default_band in band_options else 4,  # default to Band 6
-                key=f"band_{role}",
+                key=f"band_{role}_{st.session_state.reset_version}"
             )
             selected_band_for_role[role] = chosen_band
             staff_rates_per_min[role] = band_rates[chosen_band]
@@ -1054,7 +1169,8 @@ with st.expander("Edit staff bands"):
 with st.expander("Edit activity durations"):
     st.subheader("Activity duration ranges (minutes)")
 
-    adjusted_durations = {}
+    if not st.session_state.durations:
+        st.session_state.durations = copy.deepcopy(default_model["durations"])
 
     for activity, (min_dur, max_dur) in model["durations"].items():
 
@@ -1064,10 +1180,12 @@ with st.expander("Edit activity durations"):
             st.markdown(f"**{activity}**")
             new_min = st.number_input(
                 "Min",
-                value=float(min_dur),
                 min_value=0.0,
                 step=1.0,
-                key=f"min_{activity}"
+                value=float(
+                    st.session_state.durations.get(activity, model["durations"][activity])[0]
+                ),
+                key=f"min_{activity}_{st.session_state.reset_version}"
             )
 
         # Ensure max is always >= min
@@ -1077,18 +1195,31 @@ with st.expander("Edit activity durations"):
             st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
             new_max = st.number_input(
                 "Max",
-                value=float(safe_max),
+                value=float(
+                    st.session_state.durations.get(activity, model["durations"][activity])[1]
+                ),
                 min_value=new_min,
                 step=1.0,
-                key=f"max_{activity}"
+                key=f"max_{activity}_{st.session_state.reset_version}"
             )
 
-        adjusted_durations[activity] = (new_min, new_max)
+        st.session_state.durations[activity] = (new_min, new_max)
 
-    model["durations"] = adjusted_durations
+    # model["durations"] = st.session_state.durations
+    working_durations = copy.deepcopy(st.session_state.durations)
 
-# Define the button first
-run_sim_clicked = st.button("Run Simulation")
+    model = copy.deepcopy(DEFAULT_MODELS[model_name])
+    model["durations"] = working_durations
+    
+
+# Define the buttons first
+col_run, col_reset = st.columns([1, 1])
+
+with col_run:
+    run_sim_clicked = st.button("Run Simulation")
+
+with col_reset:
+    reset_clicked = st.button("Reset to Defaults")
 
 # st.subheader(model_name)
 
@@ -1122,6 +1253,11 @@ img = Image.open(image_path)
 if run_sim_clicked:
     if "simulation_plots" not in st.session_state:
         st.session_state.simulation_plots = []
+    
+    current_config = {
+            "staff_bands": selected_band_for_role.copy(),
+            "durations": copy.deepcopy(model["durations"])
+        }
 
     # sim_results = run_sim(model, num_patients, staff_rates_per_min)
     model_copy = copy.deepcopy(model)
@@ -1181,7 +1317,7 @@ if run_sim_clicked:
         }
 
     ### Overlay results on pathway image
-    image_overlay_results(df, df_roles, model_name, img_hold, img_hold2, role_colour_map)
+    image_overlay_results(df, df_roles, model_name, img_hold, img_hold2, role_colour_map, current_config)
 
     # with st.expander("Staff Role Cost Breakdown"):
     #     role_cost_barchart(df, model["staff_roles"], role_colour_map, staff_rates_per_min)
@@ -1190,98 +1326,50 @@ if run_sim_clicked:
     #     df_sorted = df.sort_values(by="Total Cost (£)", ascending=False)
     #     st.dataframe(df_sorted, width='stretch')
 
-    with st.expander("Previous Simulations Comparison"):
-        global_max_x = max(p["max_x"] for p in st.session_state.simulation_plots)
+    # with st.expander("Previous Simulations Comparison"):
+    recent_sims = st.session_state.simulation_plots[-5:][::-1]
+    global_max_x = max(p["max_x"] for p in recent_sims)
 
-        for sim in st.session_state.simulation_plots:
+    # for sim in recent_sims:
+    #     fig = sim["fig"]
+    #     ax = fig.axes[0]
 
-            fig = sim["fig"]
-            ax = fig.axes[0]
+    #     # enforce consistent scaling
+    #     ax.set_xlim(-1, (global_max_x) + 10)
 
-            # enforce consistent scaling
-            ax.set_xlim(-1, (global_max_x) + 10)
+    #     st.markdown(f"### {sim['model_name']}")
+    #     st.pyplot(fig)
+    for sim in recent_sims:
 
-            st.markdown(f"### {sim['model_name']}")
-            st.pyplot(fig)
+        st.markdown(f"### {sim['model_name']}")
 
-    # =========================================================
-    # Pathway Visualization
-    # =========================================================
+        if sim["changes"]:
+            st.markdown("**Scenario changes:**")
 
-    # with st.expander("Technical Pathway Model"):
+        # for item in sim["changes"]:
+        #     st.markdown(f"- {item}")
+        st.markdown(" | ".join(sim["changes"]))
 
-    #     from matplotlib.patches import FancyBboxPatch
+        st.pyplot(sim["fig"])
 
-    #     G = nx.DiGraph()
-    #     for u in model["edges"]:
-    #         for v, p in model["edges"][u]:
-    #             G.add_edge(u, v, weight=p)
+        # if first sim
+        if sim == recent_sims[0]:
+            st.markdown("---")
+            st.markdown(
+                "<h1 style='text-align: center; color:#009485; font-size: 20px;  font-family:\"Yu Gothic UI\", sans-serif;'>"
+        "Previous runs</h1>",
+                unsafe_allow_html=True
+            )
 
-    #     pos = build_positions_nx(model_name)
-
-    #     fig, ax = plt.subplots(figsize=(15, 15))
-
-    #     # ---- Scale edge widths by weight ----
-    #     min_width = 0.5
-    #     max_width = 8
-
-    #     edge_weights = [G[u][v]["weight"] for u, v in G.edges()]
-    #     edge_widths = [
-    #         min_width + w * (max_width - min_width)
-    #         for w in edge_weights
-    #     ]
-
-    #     # Draw graph with variable edge widths
-    #     nx.draw(
-    #         G,
-    #         pos,
-    #         with_labels=False,
-    #         node_size=3000,
-    #         width=edge_widths,
-    #         edge_color='#1C2747',
-    #         node_color='lightgray',
-    #         arrows=True,          
-    #         arrowsize=25 
-    #     )
-
-    #     # Adjust node labels to use linebreaks if too long
-    #     for node, (x, y) in pos.items():
-    #         label = node
-    #         if len(label) > 13:
-    #             # Insert linebreaks for long labels
-    #             label = "\n".join(label.split())
-    #         ax.text(x, y, label, ha="center", va="center", fontsize=10, color="#1C2747")
-
-    #     # Edge labels
-    #     labels = {(u, v): f"{p:.2f}" for u, v, p in G.edges(data="weight")}
-    #     nx.draw_networkx_edge_labels(G, pos, edge_labels=labels, font_size=10)
-
-    #     # # Draw custom nodes as rounded rectangles
-    #     # for node, (x, y) in pos.items():
-    #     #     width = 1
-    #     #     height = 0.08
-    #     #     boxstyle = "round,pad=0.02,rounding_size=0.05"
-    #     #     node_color = '#1C2747'  # customize per node if needed
-            
-    #     #     bbox = FancyBboxPatch(
-    #     #         (x - width/2, y - height/2), width, height,
-    #     #         boxstyle=boxstyle,
-    #     #         linewidth=2,
-    #     #         facecolor=node_color,
-    #     #         edgecolor="#1C2747",
-    #     #         mutation_aspect=1.0
-    #     #     )
-    #     #     ax.add_patch(bbox)
-            
-    #     #     # Add node label
-    #     #     ax.text(x, y, node, ha="center", va="center", fontsize=12, color="white")
-            
-    #     st.pyplot(plt, width="content")
+if reset_clicked:
+    st.session_state.reset_version += 1
+    st.rerun()
 
 # Get the path relative to app.py
 base_dir = Path(__file__).parent
 img_path = base_dir / "assets" / "Funders.png"
 
 # Load and display
+st.markdown("---")
 img = Image.open(img_path)
 st.image(img, width=400)
