@@ -1,5 +1,5 @@
 # Run with Streamlit using the following command:
-# streamlit run "C:\Users\pxb08145\OneDrive - University of Strathclyde\Documents\GitHub\SEISMIC_SHIFT_demos\SEISMIC_SHIFT_demos\app.py"
+# streamlit run "C:\Users\pxb08145\OneDrive - University of Strathclyde\Documents\GitHub\SEISMIC_SHIFT_demos\SEISMIC_SHIFT_demos\pathwaymodel_NHSL.py"
 
 import streamlit as st
 import simpy
