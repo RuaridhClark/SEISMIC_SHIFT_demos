@@ -1085,6 +1085,16 @@ def role_cost_barchart(df, model_staff_roles, role_colour_map, staff_rates_per_m
 # UI Controls
 # =========================================================
 
+# Define the buttons first
+# col_run, col_reset = st.columns([1, 1])
+left_spacer, col_run, mid_spacer, col_reset, right_spacer = st.columns([1, 1, 1, 1, 1])
+
+with col_run:
+    run_sim_clicked = st.button("Run Simulation")
+
+with col_reset:
+    reset_clicked = st.button("Reset to Defaults")
+
 # Allow user to select exactly how many patients enter
 num_patients = st.slider("Number of Patients", 1, 500, 100, step=1)
 
@@ -1210,16 +1220,6 @@ with st.expander("Edit activity durations"):
 
     model = copy.deepcopy(DEFAULT_MODELS[model_name])
     model["durations"] = working_durations
-    
-
-# Define the buttons first
-col_run, col_reset = st.columns([1, 1])
-
-with col_run:
-    run_sim_clicked = st.button("Run Simulation")
-
-with col_reset:
-    reset_clicked = st.button("Reset to Defaults")
 
 # st.subheader(model_name)
 
@@ -1344,11 +1344,7 @@ if run_sim_clicked:
         st.markdown(f"### {sim['model_name']}")
 
         if sim["changes"]:
-            st.markdown("**Scenario changes:**")
-
-        # for item in sim["changes"]:
-        #     st.markdown(f"- {item}")
-        st.markdown(" | ".join(sim["changes"]))
+            st.markdown(f"**Scenario changes:** {' | '.join(sim['changes'])}")
 
         st.pyplot(sim["fig"])
 
