@@ -1,4 +1,5 @@
-# streamlit run systemsprint_NHSL_kiosk_2.py
+# Run with Streamlit using the following command:
+# streamlit run "C:\Users\pxb08145\OneDrive - University of Strathclyde\Documents\GitHub\SEISMIC_SHIFT_demos\SEISMIC_SHIFT_demos\systemsprint_NHSL_kiosk_2.py"
 
 import streamlit as st
 from pathlib import Path
@@ -126,7 +127,12 @@ body {{ margin:0; }}
 
 
 #minimap-viewport {{
-    display: none;
+    display: block;
+    position: absolute;
+    border: 2px solid #FF6B35;
+    background: rgba(255, 107, 53, 0.2);
+    cursor: grab;
+    box-sizing: border-box;
 }}
 
 
@@ -150,7 +156,7 @@ body {{ margin:0; }}
 
 <div id="zoom-modal">
 
-<button id="zoom-reset">Zoom out</button>
+<button id="zoom-reset">Reset</button>
 
 <div id="viewport">
     <div id="panzoom-content">
@@ -262,16 +268,6 @@ function fitToScreen(animated = false) {{
     updateMinimap();
 }}
 
-// ---------- DEFAULT LOAD ----------
-requestAnimationFrame(() => {{
-    fitToScreen(false);
-}});
-
-// ---------- RESET ----------
-document.getElementById("zoom-reset").onclick = function () {{
-    fitToScreen(true);
-}};
-
 function updateMinimap() {{
 
     const scale = panzoom.getScale();
@@ -282,30 +278,32 @@ function updateMinimap() {{
     const contentWidth = img.naturalWidth;
     const contentHeight = img.naturalHeight;
 
-    const viewportRect = viewport.getBoundingClientRect();
     const minimapRect = minimapImg.getBoundingClientRect();
 
-    // ✅ Size of visible area in image coordinates
-    const visibleWidth = viewportRect.width / scale;
-    const visibleHeight = viewportRect.height / scale;
+    // ✅ Determine actual minimap dimensions (respect aspect ratio)
+    const actualMinimapWidth = minimapRect.width;
+    const actualMinimapHeight = minimapRect.height;
 
-    // ✅ Top-left corner in image coordinates
-    const offsetX = -pan.x / scale;
-    const offsetY = -pan.y / scale;
+    if (!actualMinimapWidth || !actualMinimapHeight) {{
+        return;
+    }}
 
-    // ✅ Scale factors from image → minimap
-    const ratioX = minimapRect.width / contentWidth;
-    const ratioY = minimapRect.height / contentHeight;
+    // ✅ Scale factors from image → minimap (using actual dimensions)
+    const ratioX = actualMinimapWidth / contentWidth;
+    const ratioY = actualMinimapHeight / contentHeight;
 
-    let boxWidth = visibleWidth * ratioX;
-    let boxHeight = visibleHeight * ratioY;
+    // ✅ Size of visible area in image coordinates, clamped to image bounds
+    const visibleWidth = Math.min(viewport.clientWidth / scale, contentWidth);
+    const visibleHeight = Math.min(viewport.clientHeight / scale, contentHeight);
 
-    let left = offsetX * ratioX;
-    let top = offsetY * ratioY;
+    // ✅ Top-left corner in image coordinates, clamped to image bounds
+    const offsetX = -pan.x / scale // Math.max(0, Math.min(-pan.x / scale, contentWidth - visibleWidth));
+    const offsetY = -pan.y / scale // Math.max(0, Math.min(-pan.y / scale, contentHeight - visibleHeight));
 
-    // ✅ Clamp after scaling
-    left = Math.max(0, Math.min(left, minimapRect.width - boxWidth));
-    top = Math.max(0, Math.min(top, minimapRect.height - boxHeight));
+    const boxWidth = visibleWidth * ratioX;
+    const boxHeight = visibleHeight * ratioY;
+    const left = offsetX * ratioX;
+    const top = offsetY * ratioY;
 
     minimapViewport.style.width = boxWidth + "px";
     minimapViewport.style.height = boxHeight + "px";
@@ -315,23 +313,47 @@ function updateMinimap() {{
 
 content.addEventListener("panzoomchange", updateMinimap);
 
-// ---------- DEFAULT LOAD (ZOOMED IN) ----------
+// ---------- DEFAULT LOAD (SLIGHTLY ZOOMED OUT) ----------
 requestAnimationFrame(() => {{
+
+    const img = content.querySelector("img");
 
     const vw = viewport.clientWidth;
     const vh = viewport.clientHeight;
-    const cw = content.clientWidth;
-    const ch = content.clientHeight;
 
-    panzoom.zoom(1, {{ animate:false }});   // ✅ START ZOOMED
-    panzoom.pan(vw/2 - cw/2, vh/2 - ch/2);
+    const iw = img.naturalWidth;
+    const ih = img.naturalHeight;
+
+    const scale = 1;
+
+    panzoom.zoom(scale, {{ animate:false }});
+
+    panzoom.pan(
+        (vw - iw * scale) / 2,
+        (vh - ih * scale) / 2
+    );
 
     updateMinimap();
 }});
 
 // ---------- RESET ----------
 document.getElementById("zoom-reset").onclick = function() {{
-    panzoom.reset();
+    const img = content.querySelector("img");
+
+    const vw = viewport.clientWidth;
+    const vh = viewport.clientHeight;
+
+    const iw = img.naturalWidth;
+    const ih = img.naturalHeight;
+
+    const scale = 1;
+
+    panzoom.zoom(scale, {{ animate:false }});
+
+    panzoom.pan(
+        (vw - iw * scale) / 2,
+        (vh - ih * scale) / 2
+    );
     updateMinimap();
 }};
 
@@ -341,7 +363,7 @@ document.getElementById("zoom-reset").onclick = function() {{
 </html>
 """
 
-st.components.v1.html(html, height=800)
+st.components.v1.html(html, height=1200)
 
 # ---------- CONTROLS ----------
 col1, col2, col3, col4 = st.columns(4)

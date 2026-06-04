@@ -170,26 +170,6 @@ body {{ margin:0; }}
 </div>
 
 <div id="zoom-modal">
-
-        <button id="zoom-reset"
-            style="
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                z-index: 10000;
-                padding: 10px 16px;
-                font-size: 14px;
-                font-family: 'Yu Gothic UI', sans-serif;
-                background-color: #009485;
-                color: #FFFFFF;
-                border: none;                 /* ✅ remove grey border */
-                border-radius: 6px;
-                cursor: pointer;
-                box-shadow: 0 2px 6px rgba(0,0,0,0.2);  /* ✅ nice depth */
-            ">
-            Zoom out
-        </button>
-
     <div id="viewport">
         <div id="panzoom-content">
             <img src="data:image/png;base64,{base_img}">
